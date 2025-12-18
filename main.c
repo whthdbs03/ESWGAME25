@@ -44,6 +44,62 @@ static int score = 0;
 
 static inline int pressed(uint8_t pin) { return bcm2835_gpio_lev(pin) == LOW; } // PUD_UP
 static inline int eq(Point a, Point b) { return a.x==b.x && a.y==b.y; }
+typedef struct {
+    char ch;
+    uint8_t rows[7]; // 5-bit used
+} Glyph5x7;
+
+static const Glyph5x7 FONT[] = {
+    {' ', {0,0,0,0,0,0,0}},
+    {'!', {0x04,0x04,0x04,0x04,0x04,0x00,0x04}},
+
+    {'A', {0x1E,0x21,0x21,0x3F,0x21,0x21,0x21}},
+    {'C', {0x1E,0x21,0x20,0x20,0x20,0x21,0x1E}},
+    {'E', {0x3F,0x20,0x20,0x3E,0x20,0x20,0x3F}},
+    {'G', {0x1E,0x21,0x20,0x27,0x21,0x21,0x1E}},
+    {'L', {0x20,0x20,0x20,0x20,0x20,0x20,0x3F}},
+    {'M', {0x21,0x33,0x2D,0x21,0x21,0x21,0x21}},
+    {'O', {0x1E,0x21,0x21,0x21,0x21,0x21,0x1E}},
+    {'P', {0x3E,0x21,0x21,0x3E,0x20,0x20,0x20}},
+    {'R', {0x3E,0x21,0x21,0x3E,0x22,0x21,0x21}},
+    {'S', {0x1F,0x20,0x20,0x1E,0x01,0x01,0x3E}},
+    {'T', {0x3F,0x04,0x04,0x04,0x04,0x04,0x04}},
+    {'V', {0x21,0x21,0x21,0x21,0x21,0x12,0x0C}},
+};
+
+static const Glyph5x7* get_glyph(char c) {
+    // 대문자만 쓸 거라 소문자 들어오면 대문자로 바꿔도 됨(옵션)
+    if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+    for (unsigned i = 0; i < sizeof(FONT)/sizeof(FONT[0]); i++) {
+        if (FONT[i].ch == c) return &FONT[i];
+    }
+    return &FONT[0]; // 모르면 공백
+}
+
+static void draw_char_5x7(int gx, int gy, char c, uint16_t color) {
+    const Glyph5x7* g = get_glyph(c);
+    for (int row = 0; row < 7; row++) {
+        uint8_t bits = g->rows[row];
+        for (int col = 0; col < 5; col++) {
+            if (bits & (1 << (4 - col))) {
+                draw_cell(gx + col, gy + row, color);
+            }
+        }
+    }
+}
+
+// 글자 간격: 1칸 띄우기 (5 + 1 = 6)
+static void draw_text_5x7_centered(const char* s, int gy, uint16_t color) {
+    int len = 0;
+    while (s[len] != 0) len++;
+
+    int text_w = len * 6 - 1; // 마지막은 간격 없음
+    int start_x = (GRID_W - text_w) / 2;
+
+    for (int i = 0; i < len; i++) {
+        draw_char_5x7(start_x + i * 6, gy, s[i], color);
+    }
+}
 
 static void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
     if (gx >= GRID_W || gy >= GRID_H) return;
@@ -74,9 +130,11 @@ static void render_score_bar(void) {
 }
 static void clear_screen_ui(void) {
     st7789_fillScreen(C_GREEN);
-    // 점수만큼 하단 흰 막대 (24면 꽉 참)
-    for (int x = 0; x < GRID_W; x++) draw_cell(x, GRID_H-1, C_WHITE);
+    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_GREEN);
+
+    draw_text_5x7_centered("CLEAR!", 12, C_WHITE);
 }
+
 
 static void reset_game(void) {
     score = 0;
@@ -100,17 +158,20 @@ static void reset_game(void) {
 
 static void menu_screen(void) {
     st7789_fillScreen(C_BLUE);
-    // HUD 줄도 파란색으로 통일
-    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_BLUE);
-    draw_cell(GRID_W/2, GRID_H/2, C_WHITE); // 시작 마커
+    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_BLUE); // HUD 정리
+
+    draw_text_5x7_centered("START", 8, C_WHITE);
+    draw_text_5x7_centered("PRESS CENTER", 16, C_WHITE); // P, R, E, S, C... 추가 필요!
 }
+
 
 static void gameover_screen(void) {
     st7789_fillScreen(C_RED);
-    // 점수만큼 하단 흰 막대
-    int bar = score; if (bar > GRID_W) bar = GRID_W;
-    for (int x=0; x<bar; x++) draw_cell(x, GRID_H-1, C_WHITE);
+    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_RED);
+
+    draw_text_5x7_centered("GAME OVER", 12, C_WHITE);
 }
+
 
 static void handle_input(void) {
 
