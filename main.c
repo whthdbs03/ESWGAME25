@@ -181,7 +181,8 @@ static const Glyph5x7* get_glyph(char c) {
     return &FONT[0]; // 모르면 공백
 }
 static void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
-    if (gx >= GRID_W || gy >= GRID_H) return;
+    int px = gx * CELL;
+    int py = gy * CELL;
     draw_rect_both(px, py, CELL, CELL, color);
 }
 static void draw_char_5x7_px(int px, int py, char c, int s, uint16_t color) {
