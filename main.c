@@ -75,7 +75,10 @@ static const Glyph5x7* get_glyph(char c) {
     }
     return &FONT[0]; // 모르면 공백
 }
-
+static void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
+    if (gx >= GRID_W || gy >= GRID_H) return;
+    st7789_fillRect(gx * CELL, gy * CELL, CELL, CELL, color);
+}
 static void draw_char_5x7(int gx, int gy, char c, uint16_t color) {
     const Glyph5x7* g = get_glyph(c);
     for (int row = 0; row < 7; row++) {
@@ -101,10 +104,6 @@ static void draw_text_5x7_centered(const char* s, int gy, uint16_t color) {
     }
 }
 
-static void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
-    if (gx >= GRID_W || gy >= GRID_H) return;
-    st7789_fillRect(gx * CELL, gy * CELL, CELL, CELL, color);
-}
 
 static int snake_contains(Point p) {
     for (int i=0;i<snake_len;i++) if (eq(snake[i], p)) return 1;
