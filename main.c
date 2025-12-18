@@ -95,46 +95,64 @@ static void gameover_screen(void) {
     for (int x=0; x<bar; x++) draw_cell(x, GRID_H-1, C_WHITE);
 }
 
-static uint32_t last_input_ms = 0;
-static int input_ok(uint32_t now) {
-    if (now - last_input_ms < 80) return 0;
-    last_input_ms = now;
-    return 1;
-}
+// static uint32_t last_input_ms = 0;
+// static int input_ok(uint32_t now) {
+//     if (now - last_input_ms < 80) return 0;
+//     last_input_ms = now;
+//     return 1;
+// }
 
 static void handle_input(void) {
-    uint32_t now = bcm2835_millis();
-
-    if (!input_ok(now)) return;
 
     if (state == ST_MENU) {
-        if (pressed(PIN_CENTER)) { reset_game(); state = ST_PLAY; }
-        return;
-    }
-    if (state == ST_GAMEOVER) {
-        if (pressed(PIN_CENTER)) { state = ST_MENU; menu_screen(); }
+        if (pressed(PIN_CENTER)) {
+            bcm2835_delay(200); // 디바운스
+            reset_game();
+            state = ST_PLAY;
+        }
         return;
     }
 
-    // A: 일시정지 토글(원하면)
+    if (state == ST_GAMEOVER) {
+        if (pressed(PIN_CENTER)) {
+            bcm2835_delay(200);
+            state = ST_MENU;
+            menu_screen();
+        }
+        return;
+    }
+
+    // A 버튼: 일시정지 토글
     if (pressed(PIN_A)) {
+        bcm2835_delay(200);
         if (state == ST_PLAY) state = ST_PAUSE;
         else if (state == ST_PAUSE) state = ST_PLAY;
         return;
     }
-    // B: 메뉴로
+
+    // B 버튼: 메뉴로
     if (pressed(PIN_B)) {
-        state = ST_MENU; menu_screen();
+        bcm2835_delay(200);
+        state = ST_MENU;
+        menu_screen();
         return;
     }
 
     if (state != ST_PLAY) return;
 
-    // 방향(반대방향 금지)
-    if (pressed(PIN_UP) && dir != DIR_DOWN) dir = DIR_UP;
-    else if (pressed(PIN_DOWN) && dir != DIR_UP) dir = DIR_DOWN;
-    else if (pressed(PIN_LEFT) && dir != DIR_RIGHT) dir = DIR_LEFT;
-    else if (pressed(PIN_RIGHT) && dir != DIR_LEFT) dir = DIR_RIGHT;
+    // 방향 입력 (반대방향 금지)
+    if (pressed(PIN_UP) && dir != DIR_DOWN) {
+        dir = DIR_UP; bcm2835_delay(120);
+    }
+    else if (pressed(PIN_DOWN) && dir != DIR_UP) {
+        dir = DIR_DOWN; bcm2835_delay(120);
+    }
+    else if (pressed(PIN_LEFT) && dir != DIR_RIGHT) {
+        dir = DIR_LEFT; bcm2835_delay(120);
+    }
+    else if (pressed(PIN_RIGHT) && dir != DIR_LEFT) {
+        dir = DIR_RIGHT; bcm2835_delay(120);
+    }
 }
 
 static void tick_move(void) {
@@ -205,21 +223,18 @@ int main(void) {
 
     menu_screen();
 
-    uint32_t last_tick = bcm2835_millis();
     const uint32_t tick_ms = 120;
 
     while (1) {
         handle_input();
 
         if (state == ST_PLAY) {
-            uint32_t now = bcm2835_millis();
-            if (now - last_tick >= tick_ms) {
-                last_tick = now;
-                tick_move();
-            }
+            tick_move();
+            bcm2835_delay(120); // 게임 속도
+        } else {
+            bcm2835_delay(50);
         }
 
-        bcm2835_delay(5);
     }
 
     bcm2835_spi_end();
