@@ -49,6 +49,11 @@ typedef struct {
     uint8_t rows[7]; // 5-bit used
 } Glyph5x7;
 
+static inline void dot(int x, int y, int s, uint16_t color) {
+    // (x,y)는 픽셀 좌표, s는 스케일(2면 2x2)
+    st7789_fillRect((uint16_t)x, (uint16_t)y, (uint16_t)s, (uint16_t)s, color);
+}
+
 static const Glyph5x7 FONT[] = {
     {' ', {0,0,0,0,0,0,0}},
     {'!', {0x04,0x04,0x04,0x04,0x04,0x00,0x04}},
@@ -61,7 +66,9 @@ static const Glyph5x7 FONT[] = {
     {'M', {0x21,0x33,0x2D,0x21,0x21,0x21,0x21}},
     {'O', {0x1E,0x21,0x21,0x21,0x21,0x21,0x1E}},
     {'P', {0x3E,0x21,0x21,0x3E,0x20,0x20,0x20}},
-    {'R', {0x3E,0x21,0x21,0x3E,0x22,0x21,0x21}},
+    // {'R', {0x3E,0x21,0x21,0x3E,0x22,0x21,0x21}},
+    {'R', {0x3E,0x21,0x21,0x3E,0x28,0x24,0x22}},
+
     {'S', {0x1F,0x20,0x20,0x1E,0x01,0x01,0x3E}},
     {'T', {0x3F,0x04,0x04,0x04,0x04,0x04,0x04}},
     {'V', {0x21,0x21,0x21,0x21,0x21,0x12,0x0C}},
@@ -79,15 +86,28 @@ static void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
     if (gx >= GRID_W || gy >= GRID_H) return;
     st7789_fillRect(gx * CELL, gy * CELL, CELL, CELL, color);
 }
-static void draw_char_5x7(int gx, int gy, char c, uint16_t color) {
+static void draw_char_5x7_px(int px, int py, char c, int s, uint16_t color) {
     const Glyph5x7* g = get_glyph(c);
     for (int row = 0; row < 7; row++) {
         uint8_t bits = g->rows[row];
         for (int col = 0; col < 5; col++) {
             if (bits & (1 << (4 - col))) {
-                draw_cell(gx + col, gy + row, color);
+                dot(px + col * s, py + row * s, s, color);
             }
         }
+    }
+}
+static int str_len(const char* s) { int n=0; while (s[n]) n++; return n; }
+
+static void draw_text_center_px(const char* s, int py, int sdot, uint16_t color) {
+    int len = str_len(s);
+    int char_w = 5 * sdot;
+    int gap = 1 * sdot;                // 글자 간 1픽셀(스케일 반영)
+    int text_w = len * char_w + (len - 1) * gap;
+
+    int px = (ST7789_TFTWIDTH - text_w) / 2;
+    for (int i = 0; i < len; i++) {
+        draw_char_5x7_px(px + i * (char_w + gap), py, s[i], sdot, color);
     }
 }
 
@@ -129,10 +149,13 @@ static void render_score_bar(void) {
 }
 static void clear_screen_ui(void) {
     st7789_fillScreen(C_GREEN);
-    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_GREEN);
 
-    draw_text_5x7_centered("CLEAR!", 12, C_WHITE);
+    int sdot = 4;
+    int start_y = (ST7789_TFTHEIGHT - 7*sdot) / 2;
+
+    draw_text_center_px("CLEAR!", start_y, sdot, C_WHITE);
 }
+
 
 
 static void reset_game(void) {
@@ -157,18 +180,28 @@ static void reset_game(void) {
 
 static void menu_screen(void) {
     st7789_fillScreen(C_BLUE);
-    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_BLUE); // HUD 정리
 
-    draw_text_5x7_centered("START", 8, C_WHITE);
-    draw_text_5x7_centered("PRESS CENTER", 16, C_WHITE); // P, R, E, S, C... 추가 필요!
+    int sdot = 4;
+    int line_h = 7*sdot + 6;
+    int start_y = (ST7789_TFTHEIGHT - line_h*2) / 2;
+
+    draw_text_center_px("SNAKE", start_y, sdot, C_WHITE);   // 필요 글자 없으면 START만
+    draw_text_center_px("START", start_y + line_h, sdot, C_WHITE);
 }
+
 
 
 static void gameover_screen(void) {
     st7789_fillScreen(C_RED);
-    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_RED);
 
-    draw_text_5x7_centered("GAME OVER", 12, C_WHITE);
+    int sdot = 4;         // 글자 크기: 3~4 추천 (4면 잘 보임)
+    int line_h = 7*sdot + 6;
+
+    int total_h = line_h * 2;
+    int start_y = (ST7789_TFTHEIGHT - total_h) / 2;
+
+    draw_text_center_px("GAME", start_y, sdot, C_WHITE);
+    draw_text_center_px("OVER", start_y + line_h, sdot, C_WHITE);
 }
 
 
