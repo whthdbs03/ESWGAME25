@@ -120,7 +120,7 @@ static void draw_text_5x7_centered(const char* s, int gy, uint16_t color) {
     int start_x = (GRID_W - text_w) / 2;
 
     for (int i = 0; i < len; i++) {
-        draw_char_5x7(start_x + i * 6, gy, s[i], color);
+        draw_char_5x7_px(start_x + i * 6, gy, s[i], color);
     }
 }
 
