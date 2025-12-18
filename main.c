@@ -26,6 +26,7 @@
 #define C_GREEN  0x07E0
 #define C_BLUE   0x001F
 #define C_YELLOW 0xFFE0
+#define FOOD_COUNT 5   // ← 기본 먹이 개수 (원하면 8, 10도 가능)
 
 typedef struct { uint8_t x, y; } Point;
 typedef enum { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT } Dir;
@@ -36,7 +37,7 @@ static GameState state = ST_MENU;
 static Point snake[GRID_W * GRID_H];
 static int snake_len = 0;
 static Dir dir = DIR_RIGHT;
-static Point food;
+static Point foods[FOOD_COUNT];
 static int score = 0;
 
 static inline int pressed(uint8_t pin) { return bcm2835_gpio_lev(pin) == LOW; } // PUD_UP
@@ -52,13 +53,16 @@ static int snake_contains(Point p) {
     return 0;
 }
 
-static void spawn_food(void) {
+static void spawn_food_at(int idx) {
+    Point p;
     do {
-        food.x = rand() % GRID_W;
-        food.y = rand() % GRID_H;
-    } while (snake_contains(food));
-    draw_cell(food.x, food.y, C_YELLOW);
+        p.x = rand() % GRID_W;
+        p.y = rand() % GRID_H;
+    } while (snake_contains(p));
+    foods[idx] = p;
+    draw_cell(p.x, p.y, C_YELLOW);
 }
+
 
 static void render_score_bar(void) {
     // 상단 한 줄에 점수 막대(최대 24)
@@ -79,7 +83,9 @@ static void reset_game(void) {
     st7789_fillScreen(C_BLACK);
     for (int i=0;i<snake_len;i++) draw_cell(snake[i].x, snake[i].y, C_GREEN);
 
-    spawn_food();
+    for (int i = 0; i < FOOD_COUNT; i++) {
+        spawn_food_at(i);
+    }
     render_score_bar();
 }
 
@@ -94,13 +100,6 @@ static void gameover_screen(void) {
     int bar = score; if (bar > GRID_W) bar = GRID_W;
     for (int x=0; x<bar; x++) draw_cell(x, GRID_H-1, C_WHITE);
 }
-
-// static uint32_t last_input_ms = 0;
-// static int input_ok(uint32_t now) {
-//     if (now - last_input_ms < 80) return 0;
-//     last_input_ms = now;
-//     return 1;
-// }
 
 static void handle_input(void) {
 
@@ -177,8 +176,16 @@ static void tick_move(void) {
         return;
     }
 
-    int ate = eq(nh, food);
-    if (ate) score++;
+    int ate = -1;
+    for (int i = 0; i < FOOD_COUNT; i++) {
+        if (eq(nh, foods[i])) {
+            ate = i;
+            break;
+        }
+    }
+
+    if (ate >= 0) score++;
+
 
     // 꼬리 처리(먹었으면 길이+1)
     Point tail = snake[snake_len - 1];
@@ -191,7 +198,9 @@ static void tick_move(void) {
 
     draw_cell(nh.x, nh.y, C_GREEN);
 
-    if (ate) spawn_food();
+    if (ate >= 0) {
+        spawn_food_at(ate);  // 먹은 자리만 다시 생성
+    }
     render_score_bar();
 }
 
