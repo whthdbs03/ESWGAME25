@@ -4,6 +4,7 @@
 #include <time.h>
 #include <bcm2835.h>
 #include "st7789.h"
+#include <SDL2/SDL.h>
 
 // ===== 핀 (BCM GPIO 번호) =====
 #define PIN_UP     17
@@ -44,6 +45,79 @@ static int score = 0;
 
 static inline int pressed(uint8_t pin) { return bcm2835_gpio_lev(pin) == LOW; } // PUD_UP
 static inline int eq(Point a, Point b) { return a.x==b.x && a.y==b.y; }
+
+static SDL_Window* win = NULL;
+static SDL_Renderer* ren = NULL;
+static SDL_Texture* tex = NULL;
+static uint32_t mirror_rgba[ST7789_TFTWIDTH * ST7789_TFTHEIGHT];
+
+static uint32_t rgb565_to_rgba8888(uint16_t c) {
+    uint8_t r = (c >> 11) & 0x1F;
+    uint8_t g = (c >> 5)  & 0x3F;
+    uint8_t b = (c >> 0)  & 0x1F;
+    // 5/6bit -> 8bit 확장
+    r = (r << 3) | (r >> 2);
+    g = (g << 2) | (g >> 4);
+    b = (b << 3) | (b >> 2);
+    return (0xFFu<<24) | (r<<16) | (g<<8) | b; // ARGB/RGBA는 텍스처 포맷에 맞춤
+}
+
+static int mirror_init(void) {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) return 0;
+
+    win = SDL_CreateWindow("SNAKE MIRROR",
+                           SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                           ST7789_TFTWIDTH*2, ST7789_TFTHEIGHT*2, 0);
+    if (!win) return 0;
+
+    ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    if (!ren) return 0;
+
+    tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
+                            SDL_TEXTUREACCESS_STREAMING,
+                            ST7789_TFTWIDTH, ST7789_TFTHEIGHT);
+    if (!tex) return 0;
+
+    return 1;
+}
+
+static void mirror_quit(void) {
+    if (tex) SDL_DestroyTexture(tex);
+    if (ren) SDL_DestroyRenderer(ren);
+    if (win) SDL_DestroyWindow(win);
+    SDL_Quit();
+}
+
+static void mirror_fillRect(int x, int y, int w, int h, uint16_t color) {
+    if (x < 0 || y < 0) return;
+    if (x + w > ST7789_TFTWIDTH)  w = ST7789_TFTWIDTH - x;
+    if (y + h > ST7789_TFTHEIGHT) h = ST7789_TFTHEIGHT - y;
+
+    uint32_t rgba = rgb565_to_rgba8888(color);
+    for (int yy = y; yy < y + h; yy++) {
+        uint32_t* row = &mirror_rgba[yy * ST7789_TFTWIDTH];
+        for (int xx = x; xx < x + w; xx++) row[xx] = rgba;
+    }
+}
+
+static void mirror_present(void) {
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_QUIT) {
+            // 창 닫으면 프로그램 종료하고 싶으면 여기서 exit(0) 해도 됨
+        }
+    }
+    SDL_UpdateTexture(tex, NULL, mirror_rgba, ST7789_TFTWIDTH * sizeof(uint32_t));
+    SDL_RenderClear(ren);
+    SDL_RenderCopy(ren, tex, NULL, NULL);
+    SDL_RenderPresent(ren);
+}
+
+static void draw_rect_both(int x, int y, int w, int h, uint16_t color) {
+    st7789_fillRect(x, y, w, h, color);      // TFT
+    mirror_fillRect(x, y, w, h, color);      // HDMI 창
+}
+
 typedef struct {
     char ch;
     uint8_t rows[7]; // 5-bit used
@@ -51,7 +125,8 @@ typedef struct {
 
 static inline void dot(int x, int y, int s, uint16_t color) {
     // (x,y)는 픽셀 좌표, s는 스케일(2면 2x2)
-    st7789_fillRect((uint16_t)x, (uint16_t)y, (uint16_t)s, (uint16_t)s, color);
+    // st7789_fillRect((uint16_t)x, (uint16_t)y, (uint16_t)s, (uint16_t)s, color);
+    draw_rect_both((uint16_t)x, (uint16_t)y, (uint16_t)s, (uint16_t)s, color);
 }
 
 static const Glyph5x7 FONT[] = {
@@ -107,7 +182,7 @@ static const Glyph5x7* get_glyph(char c) {
 }
 static void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
     if (gx >= GRID_W || gy >= GRID_H) return;
-    st7789_fillRect(gx * CELL, gy * CELL, CELL, CELL, color);
+    draw_rect_both(px, py, CELL, CELL, color);
 }
 static void draw_char_5x7_px(int px, int py, char c, int s, uint16_t color) {
     const Glyph5x7* g = get_glyph(c);
@@ -357,6 +432,9 @@ int main(void) {
     bcm2835_gpio_set(26);
 
     st7789_init();
+    if (!mirror_init()) {
+        printf("SDL mirror init failed\n");
+    }
     setup_inputs();
     srand((unsigned)time(NULL));
 
@@ -373,6 +451,8 @@ int main(void) {
         } else {
             bcm2835_delay(50);
         }
+
+        mirror_present();
 
     }
 
