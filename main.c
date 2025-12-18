@@ -113,6 +113,18 @@ static void mirror_present(void) {
     SDL_RenderPresent(ren);
 }
 
+static void mirror_fillScreen(uint16_t color) {
+    uint32_t rgba = rgb565_to_rgba8888(color);
+    for (int i = 0; i < ST7789_TFTWIDTH * ST7789_TFTHEIGHT; i++) {
+        mirror_rgba[i] = rgba;
+    }
+}
+
+static void fill_screen_both(uint16_t color) {
+    st7789_fillScreen(color);     // TFT clear
+    mirror_fillScreen(color);     // SDL buffer clear
+}
+
 static void draw_rect_both(int x, int y, int w, int h, uint16_t color) {
     st7789_fillRect(x, y, w, h, color);      // TFT
     mirror_fillRect(x, y, w, h, color);      // HDMI 창
@@ -236,7 +248,7 @@ static void render_score_bar(void) {
     for (int x=0; x<GRID_W; x++) draw_cell(x, 0, (x < bar) ? C_BLUE : C_BLACK);
 }
 static void clear_screen_ui(void) {
-    st7789_fillScreen(C_GREEN);
+    fill_screen_both(C_GREEN);
 
     int sdot = 4;
     int start_y = (ST7789_TFTHEIGHT - 7*sdot) / 2;
@@ -257,7 +269,7 @@ static void reset_game(void) {
     snake[1] = (Point){ (uint8_t)(GRID_W/2 - 1), sy };
     snake[2] = (Point){ (uint8_t)(GRID_W/2 - 2), sy };
 
-    st7789_fillScreen(C_BLACK);
+    fill_screen_both(C_BLACK);
     for (int i=0;i<snake_len;i++) draw_cell(snake[i].x, snake[i].y, C_GREEN);
 
     for (int i = 0; i < FOOD_COUNT; i++) {
@@ -267,7 +279,7 @@ static void reset_game(void) {
 }
 
 static void menu_screen(void) {
-    st7789_fillScreen(C_BLUE);
+    fill_screen_both(C_BLUE);
 
     int sdot = 4;
     int line_h = 7*sdot + 6;
@@ -280,7 +292,7 @@ static void menu_screen(void) {
 
 
 static void gameover_screen(void) {
-    st7789_fillScreen(C_RED);
+    fill_screen_both(C_RED);
 
     int sdot = 4;         // 글자 크기: 3~4 추천 (4면 잘 보임)
     int line_h = 7*sdot + 6;
