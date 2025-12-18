@@ -189,7 +189,7 @@ static void tick_move(void) {
 
     // 꼬리 처리(먹었으면 길이+1)
     Point tail = snake[snake_len - 1];
-    if (!ate) draw_cell(tail.x, tail.y, C_BLACK);
+    if (ate<0) draw_cell(tail.x, tail.y, C_BLACK);
     else snake_len++;
 
     // shift
