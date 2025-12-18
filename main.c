@@ -27,10 +27,12 @@
 #define C_BLUE   0x001F
 #define C_YELLOW 0xFFE0
 #define FOOD_COUNT 5   // ← 기본 먹이 개수 (원하면 8, 10도 가능)
+#define HUD_ROWS 1               // 점수줄 1줄은 플레이 금지(벽)
+#define CLEAR_SCORE GRID_W       // 24점이면 클리어
 
 typedef struct { uint8_t x, y; } Point;
 typedef enum { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT } Dir;
-typedef enum { ST_MENU, ST_PLAY, ST_PAUSE, ST_GAMEOVER } GameState;
+typedef enum { ST_MENU, ST_PLAY, ST_PAUSE, ST_GAMEOVER, ST_CLEAR } GameState;
 
 static GameState state = ST_MENU;
 
@@ -57,7 +59,7 @@ static void spawn_food_at(int idx) {
     Point p;
     do {
         p.x = rand() % GRID_W;
-        p.y = rand() % GRID_H;
+        p.y = HUD_ROWS + (rand() % (GRID_H - HUD_ROWS));
     } while (snake_contains(p));
     foods[idx] = p;
     draw_cell(p.x, p.y, C_YELLOW);
@@ -70,15 +72,22 @@ static void render_score_bar(void) {
     if (bar > GRID_W) bar = GRID_W;
     for (int x=0; x<GRID_W; x++) draw_cell(x, 0, (x < bar) ? C_BLUE : C_BLACK);
 }
+static void clear_screen_ui(void) {
+    st7789_fillScreen(C_GREEN);
+    // 점수만큼 하단 흰 막대 (24면 꽉 참)
+    for (int x = 0; x < GRID_W; x++) draw_cell(x, GRID_H-1, C_WHITE);
+}
 
 static void reset_game(void) {
     score = 0;
     snake_len = 3;
     dir = DIR_RIGHT;
 
-    snake[0] = (Point){ GRID_W/2, GRID_H/2 };
-    snake[1] = (Point){ (uint8_t)(GRID_W/2 - 1), (uint8_t)(GRID_H/2) };
-    snake[2] = (Point){ (uint8_t)(GRID_W/2 - 2), (uint8_t)(GRID_H/2) };
+    uint8_t sy = HUD_ROWS + (GRID_H - HUD_ROWS) / 2;
+
+    snake[0] = (Point){ GRID_W/2, sy };
+    snake[1] = (Point){ (uint8_t)(GRID_W/2 - 1), sy };
+    snake[2] = (Point){ (uint8_t)(GRID_W/2 - 2), sy };
 
     st7789_fillScreen(C_BLACK);
     for (int i=0;i<snake_len;i++) draw_cell(snake[i].x, snake[i].y, C_GREEN);
@@ -91,7 +100,9 @@ static void reset_game(void) {
 
 static void menu_screen(void) {
     st7789_fillScreen(C_BLUE);
-    draw_cell(GRID_W/2, GRID_H/2, C_GREEN); // "센터 눌러 시작" 대신 표시
+    // HUD 줄도 파란색으로 통일
+    for (int x=0; x<GRID_W; x++) draw_cell(x, 0, C_BLUE);
+    draw_cell(GRID_W/2, GRID_H/2, C_WHITE); // 시작 마커
 }
 
 static void gameover_screen(void) {
@@ -113,6 +124,15 @@ static void handle_input(void) {
     }
 
     if (state == ST_GAMEOVER) {
+        if (pressed(PIN_CENTER)) {
+            bcm2835_delay(200);
+            state = ST_MENU;
+            menu_screen();
+        }
+        return;
+    }
+
+    if (state == ST_CLEAR) {
         if (pressed(PIN_CENTER)) {
             bcm2835_delay(200);
             state = ST_MENU;
@@ -164,7 +184,7 @@ static void tick_move(void) {
     else if (dir == DIR_RIGHT) nh.x++;
 
     // 벽 충돌
-    if (nh.x >= GRID_W || nh.y >= GRID_H) {
+    if (nh.x >= GRID_W || nh.y >= GRID_H || nh.y < HUD_ROWS) {
         state = ST_GAMEOVER;
         gameover_screen();
         return;
@@ -185,6 +205,11 @@ static void tick_move(void) {
     }
 
     if (ate >= 0) score++;
+    if (score >= CLEAR_SCORE) {
+        state = ST_CLEAR;
+        clear_screen_ui();
+        return;
+    }
 
 
     // 꼬리 처리(먹었으면 길이+1)
