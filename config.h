@@ -13,7 +13,7 @@
 
 // Grid configuration
 #define CELL 10
-#define GRID_W (ST7789_TFTWIDTH  / CELL)
+#define GRID_W (ST7789_TFTWIDTH  / CELL) // 240 / 10
 #define GRID_H (ST7789_TFTHEIGHT / CELL)
 
 #define FOOD_COUNT 5

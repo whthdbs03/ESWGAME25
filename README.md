@@ -1,5 +1,5 @@
 # ESWGAME25
-ESW TFT Joystick Game.
+ESW Joystick Game.
 
 지렁이 밥을 줘요
 
