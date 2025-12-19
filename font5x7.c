@@ -46,33 +46,33 @@ static const Glyph5x7 FONT[] = {
     {'Z', {0x3F,0x01,0x02,0x04,0x08,0x10,0x3F}},
 };
 
-static const Glyph5x7* get_glyph(char c) {
-    if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
-    for (unsigned i = 0; i < sizeof(FONT) / sizeof(FONT[0]); i++) {
-        if (FONT[i].ch == c) return &FONT[i];
+static const Glyph5x7* get_glyph(char c) { // 글리프 검색
+    if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A'); // 소문자를 대문자로 변환
+    for (unsigned i = 0; i < sizeof(FONT) / sizeof(FONT[0]); i++) { // 글리프 배열 검색
+        if (FONT[i].ch == c) return &FONT[i]; // 일치하는 글리프 반환
     }
-    return &FONT[0];
+    return &FONT[0]; // 없으면 공백 글리프 반환
 }
 
-int str_len(const char* s) {
+int str_len(const char* s) { // 문자열 길이 반환
     int n = 0;
     while (s[n]) n++;
     return n;
 }
 
-void draw_char_5x7_px(int px, int py, char c, int s, uint16_t color) {
-    const Glyph5x7* g = get_glyph(c);
-    for (int row = 0; row < 7; row++) {
-        uint8_t bits = g->rows[row];
-        for (int col = 0; col < 5; col++) {
-            if (bits & (1 << (4 - col))) {
-                dot(px + col * s, py + row * s, s, color);
+void draw_char_5x7_px(int px, int py, char c, int s, uint16_t color) { // 문자 그리기
+    const Glyph5x7* g = get_glyph(c); // 글리프 가져오기
+    for (int row = 0; row < 7; row++) { // 7행 반복
+        uint8_t bits = g->rows[row]; // 해당 행의 비트 패턴
+        for (int col = 0; col < 5; col++) { // 5열 반복
+            if (bits & (1 << (4 - col))) { // 해당 비트가   1이면
+                dot(px + col * s, py + row * s, s, color); // 점 그리기
             }
         }
     }
 }
 
-void draw_text_center_px(const char* s, int py, int sdot, uint16_t color) {
+void draw_text_center_px(const char* s, int py, int sdot, uint16_t color) { // 중앙 정렬 텍스트 그리기
     int len = str_len(s);
     int char_w = 5 * sdot;
     int gap = 1 * sdot;

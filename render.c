@@ -10,7 +10,7 @@ static SDL_Renderer* ren = NULL;
 static SDL_Texture* tex = NULL;
 static uint32_t mirror_rgba[ST7789_TFTWIDTH * ST7789_TFTHEIGHT];
 
-static uint32_t rgb565_to_rgba8888(uint16_t c) {
+static uint32_t rgb565_to_rgba8888(uint16_t c) { // RGB565를 ARGB8888로 변환 TFT -> 미러링
     uint8_t r = (c >> 11) & 0x1F;
     uint8_t g = (c >> 5)  & 0x3F;
     uint8_t b = (c >> 0)  & 0x1F;
@@ -20,7 +20,7 @@ static uint32_t rgb565_to_rgba8888(uint16_t c) {
     return (0xFFu << 24) | (r << 16) | (g << 8) | b;
 }
 
-static int mirror_init(void) {
+static int mirror_init(void) { // SDL 미러 렌더러 초기화
     if (SDL_Init(SDL_INIT_VIDEO) != 0) return 0;
 
     win = SDL_CreateWindow("SNAKE MIRROR",
@@ -39,14 +39,14 @@ static int mirror_init(void) {
     return 1;
 }
 
-static void mirror_quit(void) {
+static void mirror_quit(void) { // 렌더러 종료
     if (tex) SDL_DestroyTexture(tex);
     if (ren) SDL_DestroyRenderer(ren);
     if (win) SDL_DestroyWindow(win);
     SDL_Quit();
 }
 
-static void mirror_fillRect(int x, int y, int w, int h, uint16_t color) {
+static void mirror_fillRect(int x, int y, int w, int h, uint16_t color) { // 미러링에 사각형 그리기
     if (x < 0 || y < 0) return;
     if (x + w > ST7789_TFTWIDTH)  w = ST7789_TFTWIDTH - x;
     if (y + h > ST7789_TFTHEIGHT) h = ST7789_TFTHEIGHT - y;
@@ -57,8 +57,8 @@ static void mirror_fillRect(int x, int y, int w, int h, uint16_t color) {
         for (int xx = x; xx < x + w; xx++) row[xx] = rgba;
     }
 }
-
-static void mirror_fillScreen(uint16_t color) {
+ 
+static void mirror_fillScreen(uint16_t color) { // 미러링에 화면 전체 채우기
     uint32_t rgba = rgb565_to_rgba8888(color);
     for (int i = 0; i < ST7789_TFTWIDTH * ST7789_TFTHEIGHT; i++) {
         mirror_rgba[i] = rgba;
@@ -74,17 +74,21 @@ void render_quit(void) {
     mirror_quit();
 }
 
-void render_present(void) {
+int render_present(void) { // 1이면 계속, 0이면 종료 요청
     SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_QUIT) {
-            // Keep running; caller can choose to handle quit
+    while (SDL_PollEvent(&e)) { // q 또는 ESC 누르면 종료
+        if (e.type == SDL_QUIT) return 0;
+        if (e.type == SDL_KEYDOWN) {
+            SDL_Keycode k = e.key.keysym.sym;
+            if (k == SDLK_q || k == SDLK_ESCAPE) return 0;
         }
     }
     SDL_UpdateTexture(tex, NULL, mirror_rgba, ST7789_TFTWIDTH * sizeof(uint32_t));
     SDL_RenderClear(ren);
     SDL_RenderCopy(ren, tex, NULL, NULL);
     SDL_RenderPresent(ren);
+
+    return 1;
 }
 
 void fill_screen_both(uint16_t color) {
@@ -98,11 +102,11 @@ void draw_rect_both(int x, int y, int w, int h, uint16_t color) {
 }
 
 void draw_cell(uint8_t gx, uint8_t gy, uint16_t color) {
-    int px = gx * CELL;
+    int px = gx * CELL; // 격자 좌표를 픽셀 좌표로 변환
     int py = gy * CELL;
     draw_rect_both(px, py, CELL, CELL, color);
 }
 
-void dot(int x, int y, int s, uint16_t color) {
+void dot(int x, int y, int s, uint16_t color) { // 폰트는 5*7 픽셀인데 s배 확대해서 그리기
     draw_rect_both(x, y, s, s, color);
 }

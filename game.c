@@ -234,6 +234,6 @@ void game_loop(void) {
             bcm2835_delay(50);
         }
 
-        render_present();
+        if (!render_present()) break;  // q 누르면 탈출
     }
 }
